@@ -1,0 +1,8 @@
+key,value
+package,junit:junit
+repository,https://repo.maven.apache.org/maven2
+test_mode,false
+version,4.13.2
+output,../output.png
+ascii_tree,false
+filter,
