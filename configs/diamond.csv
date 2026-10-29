@@ -1,0 +1,8 @@
+key,value
+package,A
+repository,../fixtures/diamond.json
+test_mode,true
+version,1
+output,../graph.png
+ascii_tree,false
+filter,

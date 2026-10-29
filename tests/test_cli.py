@@ -1,71 +1,76 @@
-"""Проверки вывода прямых зависимостей CLI второго этапа."""
+"""Запуск настоящего CLI и shell-обёртки без внешней сети."""
 
-from contextlib import redirect_stdout
-from io import StringIO
+import csv
 import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
-from unittest.mock import patch
-
-from src.config import Config
-from src.main import run
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class CliTests(unittest.TestCase):
-    """Точный запрос версии, вывод прямых зависимостей и ошибки."""
+    """Команды README, циклы, ошибки и отсутствие записи PNG."""
 
-    def execute(self, *arguments: str):
-        """Вызвать настоящий скрипт с выбранным Python."""
+    def execute(self, *arguments: str, cwd: Path = ROOT):
+        """Запустить run.sh из выбранного рабочего каталога."""
         return subprocess.run(
-            [str(ROOT / "run.sh"), *arguments], cwd=ROOT,
+            [str(ROOT / "run.sh"), *arguments], cwd=cwd,
             env=os.environ | {"PYTHON": sys.executable},
             capture_output=True, text=True, check=False,
         )
 
-    def test_direct_dependencies(self) -> None:
-        """Запросить указанную версию и вывести каждую прямую зависимость."""
-        with patch("src.main.MavenRepository") as factory:
-            instance = factory.return_value
-            instance.dependencies.return_value = ["g:a:1", "g:b:2"]
-            output = StringIO()
-            with redirect_stdout(output):
-                run(ROOT / "configs/maven.csv")
-        instance.dependencies.assert_called_once_with("junit:junit:4.13.2")
-        self.assertEqual(output.getvalue().splitlines(), [
-            "Прямые зависимости junit:junit:4.13.2:", "g:a:1", "g:b:2",
-        ])
-        self.assertNotIn("package=", output.getvalue())
+    def test_chain_and_outside_cwd(self) -> None:
+        """Найти конфигурацию и JSON даже при запуске из чужой папки."""
+        with tempfile.TemporaryDirectory() as directory:
+            result = self.execute("--config", "configs/chain.csv",
+                                  cwd=Path(directory))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Обход DFS: A B C", result.stdout)
+        self.assertNotIn("package=", result.stdout)
 
-    def test_leaf(self) -> None:
-        """Явно сообщить об отсутствии зависимостей."""
-        with patch("src.main.MavenRepository") as factory:
-            factory.return_value.dependencies.return_value = []
-            output = StringIO()
-            with redirect_stdout(output):
-                run(ROOT / "configs/maven.csv")
-        self.assertIn("(нет зависимостей)", output.getvalue())
+    def test_cycle_and_filter(self) -> None:
+        """Продемонстрировать цикл и отсутствие отфильтрованной ветви."""
+        result = self.execute("--config", "configs/cycle.csv")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Циклическое ребро: C -> A", result.stdout)
+        result = self.execute("--config", "configs/filter.csv")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Обход DFS: A C", result.stdout)
+        self.assertNotIn("B ->", result.stdout)
 
-    def test_test_mode_reserved_for_stage3(self) -> None:
-        """Не имитировать чтение JSON до этапа 3."""
-        config = Config("A", "graph.json", True, "1", Path("g.png"),
-                        False, "")
-        with patch("src.main.load_config", return_value=config):
-            with self.assertRaisesRegex(ValueError, "этапа 3"):
-                run(Path("unused.csv"))
+    def test_invalid_config_and_arguments(self) -> None:
+        """Завершиться с кодом 2 и понятным сообщением без traceback."""
+        for arguments in (("--config", "missing.csv"), ("--wrong",)):
+            with self.subTest(arguments=arguments):
+                result = self.execute(*arguments)
+                self.assertEqual(result.returncode, 2)
+                self.assertNotIn("Traceback", result.stderr)
 
-    def test_invalid_config(self) -> None:
-        """Сообщить об отсутствующем CSV с кодом 2 без traceback."""
-        result = self.execute("--config", "missing.csv")
-        self.assertEqual(result.returncode, 2)
-        self.assertNotIn("Traceback", result.stderr)
+    def test_reserved_visualization_does_not_write(self) -> None:
+        """Параметры этапа 5 валидируются, но пока не создают PNG."""
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            path = folder / "settings.csv"
+            output = folder / "image.png"
+            with path.open("w", newline="") as stream:
+                writer = csv.writer(stream)
+                writer.writerows([
+                    ["key", "value"], ["package", "A"],
+                    ["repository", str(ROOT / "fixtures/chain.json")],
+                    ["test_mode", "true"], ["version", "1"],
+                    ["output", str(output)], ["ascii_tree", "true"],
+                    ["filter", ""],
+                ])
+            result = self.execute("--config", str(path))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(output.exists())
 
     def test_help(self) -> None:
-        """Показать параметр выбора конфигурации."""
+        """Показать справку без обращения к репозиторию."""
         result = self.execute("--help")
         self.assertEqual(result.returncode, 0)
         self.assertIn("--config", result.stdout)
