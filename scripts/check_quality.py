@@ -16,6 +16,8 @@ MAX_CODE_WIDTH = 120
 MAX_FUNCTION_LINES = 40
 MAX_ARGUMENTS = 7
 MAX_COMPLEXITY = 10
+TEST_CALLBACKS = {"setUp", "tearDown", "setUpClass", "tearDownClass",
+                  "setUpModule", "tearDownModule"}
 CODE_SUFFIXES = {".py", ".sh", ".yml", ".yaml", ".toml"}
 FORBIDDEN_SUFFIXES = {".zip", ".tar", ".gz", ".pyc", ".pyo", ".log"}
 FORBIDDEN_PARTS = {
@@ -94,6 +96,9 @@ def check_function(node: ast.FunctionDef, name: Path) -> list[str]:
         errors.append(f"А1: {name}:{start} {node.name}, {count} аргументов")
     if not ast.get_docstring(node):
         errors.append(f"К1: {name}:{start} {node.name}, нет docstring")
+    if not re.fullmatch(r"[a-z_][a-z0-9_]*", node.name):
+        if name.parts[0] != "tests" or node.name not in TEST_CALLBACKS:
+            errors.append(f"И1: {name}:{start} {node.name}, не snake_case")
     return errors
 
 

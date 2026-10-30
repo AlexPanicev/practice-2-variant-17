@@ -1,9 +1,12 @@
 """Maven-провайдер: настоящий HTTP на loopback, без внешней сети в тестах."""
 
+import tempfile
 import threading
 import unittest
+from functools import partial
 from http.client import BadStatusLine, IncompleteRead
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from unittest.mock import patch
 from urllib.error import URLError
 
@@ -29,20 +32,12 @@ def dependency(name: str, version: str = "1", extra: str = "") -> str:
             f'{version_xml}{extra}</dependency>')
 
 
-class Handler(BaseHTTPRequestHandler):
-    """Выдать текстовые POM из словаря локального тестового сервера."""
+class Handler(SimpleHTTPRequestHandler):
+    """Выдать POM из временной папки и записывать обращения к серверу."""
 
-    def do_GET(self) -> None:
-        """Ответить содержимым POM или настоящим HTTP 404."""
+    def log_request(self, code="-", size="-") -> None:
+        """Сохранить путь каждого HTTP-запроса для проверки кэширования."""
         self.server.requests.append(self.path)
-        data = self.server.documents.get(self.path)
-        if data is None:
-            self.send_error(404)
-            return
-        self.send_response(200)
-        self.send_header("Content-Type", "application/xml")
-        self.end_headers()
-        self.wfile.write(data)
 
     def log_message(self, _format: str, *args) -> None:
         """Не печатать служебные запросы тестового сервера."""
@@ -53,8 +48,11 @@ class MavenTests(unittest.TestCase):
 
     def setUp(self) -> None:
         """Запустить изолированный HTTP-сервер на свободном порту."""
-        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        self.server.documents = {}
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.directory = Path(directory.name)
+        handler = partial(Handler, directory=self.directory)
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
         self.server.requests = []
         self.thread = threading.Thread(
             target=self.server.serve_forever,
@@ -73,8 +71,9 @@ class MavenTests(unittest.TestCase):
 
     def add(self, coordinate: str, source: str) -> None:
         """Опубликовать POM по реальному Maven-пути тестового сервера."""
-        path = "/repo/" + Coordinate.parse(coordinate).pom_path
-        self.server.documents[path] = source.encode("utf-8")
+        path = self.directory / "repo" / Coordinate.parse(coordinate).pom_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(source, encoding="utf-8")
 
     def test_versioned_direct_dependencies(self) -> None:
         """Соблюдать запрошенную версию и вывести все scope и optional."""
