@@ -120,9 +120,12 @@ def output_path(value: str, base: Path) -> Path:
 
 
 def _output_location(path: Path) -> None:
-    """Проверить доступность папки и тип существующего пути."""
+    """Проверить ближайшую существующую папку и тип пути PNG."""
     try:
-        if not path.parent.is_dir() or not os.access(path.parent, os.W_OK):
+        parent = path.parent
+        while not parent.exists():
+            parent = parent.parent
+        if not parent.is_dir() or not os.access(parent, os.W_OK | os.X_OK):
             raise ValueError("output: родительская папка недоступна для записи")
         if path.exists() and not path.is_file():
             raise ValueError("output: путь указывает не на обычный файл")

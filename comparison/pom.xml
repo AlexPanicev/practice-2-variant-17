@@ -37,6 +37,20 @@
               <outputFile>${compare.output}/classpath.txt</outputFile>
             </configuration>
           </execution>
+          <execution>
+            <id>console-tree</id>
+            <configuration>
+              <outputType>text</outputType>
+              <outputFile>${compare.output}/tree.txt</outputFile>
+            </configuration>
+          </execution>
+          <execution>
+            <id>dot-tree</id>
+            <configuration>
+              <outputType>dot</outputType>
+              <outputFile>${compare.output}/tree.dot</outputFile>
+            </configuration>
+          </execution>
         </executions>
       </plugin>
     </plugins>

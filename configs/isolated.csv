@@ -3,6 +3,6 @@ package,A
 repository,../fixtures/isolated.json
 test_mode,true
 version,1
-output,../graph.png
-ascii_tree,false
+output,../output/isolated.png
+ascii_tree,true
 filter,

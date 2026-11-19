@@ -163,13 +163,26 @@ class ConfigTests(unittest.TestCase):
                 load_config(self.path)
 
     def test_invalid_output(self) -> None:
-        """Отклонить пустой путь, неверное расширение и отсутствующую папку."""
-        for value in ("", "graph.svg", ".png", "missing/graph.png",
-                      "graph.png/", "graph.png\\"):
+        """Отклонить пустой путь, неверное расширение и каталог."""
+        for value in ("", "graph.svg", ".png", "graph.png/", "graph.png\\"):
             with self.subTest(value=value):
                 self.write_config(output=value)
                 with self.assertRaisesRegex(ValueError, "output"):
                     load_config(self.path)
+
+    def test_output_accepts_new_directory_without_creating_it(self) -> None:
+        """Разрешить будущую вложенную папку, не создавая её при чтении."""
+        self.write_config(output="new/nested/graph.png")
+        config = load_config(self.path)
+        self.assertEqual(config.output, self.root / "new/nested/graph.png")
+        self.assertFalse((self.root / "new").exists())
+
+    def test_output_rejects_file_in_parent_path(self) -> None:
+        """Отклонить путь, если один из его родителей является файлом."""
+        (self.root / "taken").touch()
+        self.write_config(output="taken/nested/graph.png")
+        with self.assertRaisesRegex(ValueError, "output"):
+            load_config(self.path)
 
     def test_output_directory(self) -> None:
         """Отклонить каталог с расширением PNG вместо выходного файла."""

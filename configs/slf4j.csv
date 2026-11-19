@@ -1,0 +1,8 @@
+key,value
+package,org.slf4j:slf4j-simple
+repository,https://repo.maven.apache.org/maven2
+test_mode,false
+version,2.0.17
+output,../output/slf4j.png
+ascii_tree,false
+filter,

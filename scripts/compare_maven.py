@@ -19,10 +19,14 @@ POM = ROOT / "comparison/pom.xml"
 OUTPUT = ROOT / "output/maven"
 TIMEOUT_SECONDS = 300
 TRANSFER = re.compile(r"Downloaded from [^:]+: (\S+\.jar)(?=\s|$)")
+GOALS = {
+    "classpath": ("dependency:build-classpath@runtime-classpath",),
+    "tree": ("dependency:tree@console-tree", "dependency:tree@dot-tree"),
+}
 
 
 def run_maven(
-    package: Coordinate, repository: str, folder: Path, cache: Path,
+    mode: str, package: Coordinate, repository: str, folder: Path, cache: Path,
 ) -> str:
     """Вызвать нужную цель Maven и вернуть журнал для сравнения."""
     maven = shutil.which(os.environ.get("MAVEN") or "mvn")
@@ -35,8 +39,7 @@ def run_maven(
         f"-Dcompare.repository={repository}",
         f"-Dcompare.group={package.group}",
         f"-Dcompare.artifact={package.artifact}",
-        f"-Dcompare.version={package.version}",
-        "dependency:build-classpath@runtime-classpath",
+        f"-Dcompare.version={package.version}", *GOALS[mode],
     ]
     try:
         result = subprocess.run(
@@ -89,7 +92,18 @@ def print_classpath(folder: Path, cache: Path, log: str) -> None:
     print("\n".join(downloads) or "(новых скачиваний не было)")
 
 
-def compare(path: Path, fresh: bool) -> None:
+def show_tree(folder: Path, package: Coordinate) -> None:
+    """Показать штатное дерево и сохранить текст и DOT."""
+    report = OUTPUT / "reports" / package.group / package.artifact
+    report /= package.version
+    report.mkdir(parents=True, exist_ok=True)
+    print((folder / "tree.txt").read_text(encoding="utf-8").rstrip())
+    for name in ("tree.txt", "tree.dot"):
+        (folder / name).replace(report / name)
+    print(f"Штатный граф Maven (DOT): {report / 'tree.dot'}")
+
+
+def compare(mode: str, path: Path, fresh: bool) -> None:
     """Выполнить контрольный запуск для реального пакета, указанного в CSV."""
     config = load_config(path)
     if config.test_mode:
@@ -100,8 +114,11 @@ def compare(path: Path, fresh: bool) -> None:
     with TemporaryDirectory(prefix="run-", dir=OUTPUT) as directory:
         folder = Path(directory)
         cache = (folder if fresh else OUTPUT) / "repository"
-        log = run_maven(package, config.repository, folder, cache)
-        print_classpath(folder, cache, log)
+        log = run_maven(mode, package, config.repository, folder, cache)
+        if mode == "classpath":
+            print_classpath(folder, cache, log)
+        else:
+            show_tree(folder, package)
 
 
 def main() -> int:
@@ -114,9 +131,13 @@ def main() -> int:
     parser.add_argument(
         "--fresh", action="store_true", help="использовать новый кэш Maven",
     )
+    parser.add_argument(
+        "--tree", action="store_true", help="вывести текст и DOT",
+    )
     args = parser.parse_args()
     try:
-        compare(args.config, args.fresh)
+        compare("tree" if args.tree else "classpath",
+                args.config, args.fresh)
     except (OSError, ValueError) as error:
         print(f"Ошибка сравнения: {error}", file=sys.stderr)
         return 2

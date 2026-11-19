@@ -1,0 +1,8 @@
+key,value
+package,com.google.code.gson:gson
+repository,https://repo.maven.apache.org/maven2
+test_mode,false
+version,2.10.1
+output,../output/gson.png
+ascii_tree,false
+filter,

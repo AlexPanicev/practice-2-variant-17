@@ -1,4 +1,4 @@
-"""CLI этапа 4 практической работы 2, вариант 17."""
+"""CLI этапа 5 практической работы 2, вариант 17."""
 
 import argparse
 from pathlib import Path
@@ -8,6 +8,7 @@ from src.config import Config, load_config
 from src.graph import Graph, Walker
 from src.maven import MavenRepository
 from src.test_repository import TestRepository
+from src.visualization import iter_ascii_tree, write_visualization
 
 
 def print_graph(graph: Graph) -> None:
@@ -33,21 +34,32 @@ def build_graph(config: Config) -> Graph:
 
 
 def run(path: Path) -> None:
-    """Вывести граф и порядок загрузки для конфигурации."""
-    graph = build_graph(load_config(path))
+    """Построить граф, сохранить D2/PNG и при запросе вывести ASCII."""
+    config = load_config(path)
+    input_paths = {path.resolve()}
+    if config.test_mode:
+        input_paths.add(Path(config.repository))
+    outputs = {config.output, config.output.with_suffix(".d2")}
+    if input_paths & outputs:
+        raise ValueError("output: результат совпадает с входным файлом")
+    graph = build_graph(config)
+    package = f"{config.package}:{config.version}"
+    labels = {config.package: package} if config.test_mode else {}
+    source = write_visualization(graph, config.output, labels)
+    print(f"Пакет: {package}")
     print_graph(graph)
-    order = graph.load_order()
-    if order is None:
-        result = "невозможен из-за циклической зависимости"
-    else:
-        result = " ".join(order) or "(нет зависимостей)"
-    print(f"Порядок загрузки: {result}")
+    if config.ascii_tree:
+        print("ASCII-дерево:")
+        for line in iter_ascii_tree(graph, labels):
+            print(line)
+    print(f"D2: {source}")
+    print(f"PNG: {config.output}")
 
 
 def main() -> int:
     """Прочитать путь CSV и сообщить об ошибке без traceback."""
     parser = argparse.ArgumentParser(
-        description="Практическая работа 2, вариант 17, этап 4"
+        description="Практическая работа 2, вариант 17, этап 5"
     )
     parser.add_argument(
         "--config", type=Path, default=Path("configs/maven.csv"),
