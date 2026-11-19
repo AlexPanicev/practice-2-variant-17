@@ -30,6 +30,7 @@ class CliTests(unittest.TestCase):
                                   cwd=Path(directory))
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Обход DFS: A B C", result.stdout)
+        self.assertIn("Порядок загрузки: C B", result.stdout)
         self.assertNotIn("package=", result.stdout)
 
     def test_cycle_and_filter(self) -> None:
@@ -37,9 +38,11 @@ class CliTests(unittest.TestCase):
         result = self.execute("--config", "configs/cycle.csv")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Циклическое ребро: C -> A", result.stdout)
+        self.assertIn("Порядок загрузки: невозможен", result.stdout)
         result = self.execute("--config", "configs/filter.csv")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Обход DFS: A C", result.stdout)
+        self.assertIn("Порядок загрузки: C", result.stdout)
         self.assertNotIn("B ->", result.stdout)
 
     def test_invalid_config_and_arguments(self) -> None:

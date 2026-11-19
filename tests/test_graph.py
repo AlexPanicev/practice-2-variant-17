@@ -105,3 +105,31 @@ class GraphTests(unittest.TestCase):
         graph = Walker(MemoryRepository(edges)).build("N0")
         self.assertEqual(len(graph.order), length + 1)
         self.assertEqual(graph.order[-1], f"N{length}")
+        self.assertEqual(graph.load_order(), graph.order[:0:-1])
+
+    def test_load_order_chain(self) -> None:
+        """Вывести сначала лист, затем потребителя, без корня."""
+        edges = {"A": ["B"], "B": ["C"], "C": []}
+        graph = Walker(MemoryRepository(edges)).build("A")
+        self.assertEqual(graph.load_order(), ["C", "B"])
+
+    def test_load_order_diamond(self) -> None:
+        """Поместить общую зависимость перед обеими ветвями один раз."""
+        edges = {"A": ["B", "C"], "B": ["D"], "C": ["D"], "D": []}
+        graph = Walker(MemoryRepository(edges)).build("A")
+        self.assertEqual(graph.load_order(), ["D", "B", "C"])
+
+    def test_load_order_cycles(self) -> None:
+        """Не объявлять допустимый порядок для цикла и самозависимости."""
+        for edges in ({"A": ["B"], "B": ["A"]}, {"A": ["A"]}):
+            with self.subTest(edges=edges):
+                graph = Walker(MemoryRepository(edges)).build("A")
+                self.assertIsNone(graph.load_order())
+
+    def test_load_order_filtered_and_isolated(self) -> None:
+        """Вернуть пустой порядок для листа и исключённого корня."""
+        repo = MemoryRepository({"A": []})
+        for substring in ("", "A"):
+            with self.subTest(substring=substring):
+                graph = Walker(repo, substring).build("A")
+                self.assertEqual(graph.load_order(), [])

@@ -1,16 +1,16 @@
-"""CLI первых трёх этапов практической работы 2, вариант 17."""
+"""CLI этапа 4 практической работы 2, вариант 17."""
 
 import argparse
 from pathlib import Path
 import sys
 
-from src.config import load_config
-from src.graph import Walker
+from src.config import Config, load_config
+from src.graph import Graph, Walker
 from src.maven import MavenRepository
 from src.test_repository import TestRepository
 
 
-def print_graph(graph) -> None:
+def print_graph(graph: Graph) -> None:
     """Показать порядок DFS, рёбра, циклы и исключённые пакеты."""
     print("Обход DFS: " + (" ".join(graph.order) or "пустой граф"))
     for node, children in graph.edges.items():
@@ -21,22 +21,33 @@ def print_graph(graph) -> None:
         print("Исключены: " + ", ".join(sorted(graph.excluded)))
 
 
-def run(path: Path) -> None:
-    """Загрузить настройки и построить граф без создания изображений."""
-    config = load_config(path)
+def build_graph(config: Config) -> Graph:
+    """Выбрать источник и обойти граф для заданного пакета."""
     if config.test_mode:
         repository = TestRepository(Path(config.repository))
         root = config.package
     else:
         repository = MavenRepository(config.repository)
         root = f"{config.package}:{config.version}"
-    print_graph(Walker(repository, config.filter).build(root))
+    return Walker(repository, config.filter).build(root)
+
+
+def run(path: Path) -> None:
+    """Вывести граф и порядок загрузки для конфигурации."""
+    graph = build_graph(load_config(path))
+    print_graph(graph)
+    order = graph.load_order()
+    if order is None:
+        result = "невозможен из-за циклической зависимости"
+    else:
+        result = " ".join(order) or "(нет зависимостей)"
+    print(f"Порядок загрузки: {result}")
 
 
 def main() -> int:
     """Прочитать путь CSV и сообщить об ошибке без traceback."""
     parser = argparse.ArgumentParser(
-        description="Практическая работа 2, вариант 17, этап 3"
+        description="Практическая работа 2, вариант 17, этап 4"
     )
     parser.add_argument(
         "--config", type=Path, default=Path("configs/maven.csv"),

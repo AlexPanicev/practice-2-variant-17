@@ -18,7 +18,8 @@ MAX_ARGUMENTS = 7
 MAX_COMPLEXITY = 10
 TEST_CALLBACKS = {"setUp", "tearDown", "setUpClass", "tearDownClass",
                   "setUpModule", "tearDownModule"}
-CODE_SUFFIXES = {".py", ".sh", ".yml", ".yaml", ".toml"}
+CODE_SUFFIXES = {".py", ".sh", ".yml", ".yaml", ".toml", ".xml", ".csv",
+                 ".json", ".d2"}
 FORBIDDEN_SUFFIXES = {".zip", ".tar", ".gz", ".pyc", ".pyo", ".log"}
 FORBIDDEN_PARTS = {
     "__pycache__", ".venv", ".pytest_cache", ".ruff_cache", ".idea",
@@ -29,10 +30,12 @@ FORBIDDEN_PARTS = {
 def repository_files() -> list[Path]:
     """Получить версионируемые и новые неигнорируемые файлы."""
     output = subprocess.check_output(
-        ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+        ["git", "ls-files", "-z", "--cached", "--others",
+         "--exclude-standard"],
         cwd=ROOT, text=True,
     )
-    return [ROOT / name for name in sorted(set(output.splitlines()))]
+    names = set(output.split("\0")) - {""}
+    return [ROOT / name for name in sorted(names)]
 
 
 def check_structure() -> list[str]:

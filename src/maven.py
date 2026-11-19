@@ -75,6 +75,7 @@ class MavenRepository:
             with urlopen(request, timeout=TIMEOUT) as response:
                 data = response.read(MAX_POM_BYTES + 1)
         except HTTPError as error:
+            error.close()
             raise ValueError(f"Maven: HTTP {error.code}: "
                              f"{coordinate.label}") from error
         except (URLError, OSError, ValueError, HTTPException) as error:

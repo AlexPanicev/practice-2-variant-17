@@ -18,12 +18,19 @@ class Repository(Protocol):
 
 @dataclass
 class Graph:
-    """Граф и порядок обнаружения вершин при DFS."""
+    """Граф и порядки обнаружения и завершения вершин при DFS."""
 
     edges: dict[str, tuple[str, ...]] = field(default_factory=dict)
     order: list[str] = field(default_factory=list)
     cycles: list[tuple[str, str]] = field(default_factory=list)
     excluded: set[str] = field(default_factory=set)
+    finished: list[str] = field(default_factory=list)
+
+    def load_order(self) -> list[str] | None:
+        """Вернуть зависимости перед потребителями, без корневого пакета."""
+        if self.cycles:
+            return None
+        return self.finished[:-1]
 
 
 def package_name(node: str) -> str:
@@ -79,6 +86,7 @@ class Walker:
         except StopIteration:
             self.stack.pop()
             self.states[node] = FINISHED
+            self.graph.finished.append(node)
             return
         state = self.states.get(child)
         if state == ACTIVE:
